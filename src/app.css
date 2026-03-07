@@ -1,0 +1,78 @@
+/* Global styles, theme variables, and custom UI components for the mailcraft dark theme */
+@import 'tailwindcss';
+
+@theme {
+	--font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+	--color-accent: #6366f1;
+	--color-accent-light: #818cf8;
+	--color-surface: #111113;
+	--color-surface-raised: #18181b;
+	--color-surface-overlay: #1e1e22;
+}
+
+* {
+	font-family: var(--font-mono);
+}
+
+body {
+	background-color: #09090b;
+	color: #fafafa;
+}
+
+::-webkit-scrollbar {
+	width: 6px;
+}
+::-webkit-scrollbar-track {
+	background: #18181b;
+}
+::-webkit-scrollbar-thumb {
+	background: #6366f1;
+	border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #818cf8;
+}
+
+input[type="text"].cell-input {
+	caret-color: #fafafa;
+}
+
+input[type="text"].cell-input::placeholder {
+	color: #3f3f46;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+input[type="number"] {
+	-moz-appearance: textfield;
+}
+
+::selection {
+	background: #6366f1;
+	color: #fafafa;
+}
+
+.elevation-1 {
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.elevation-2 {
+	box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4), 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+.elevation-3 {
+	box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4), 0 6px 6px rgba(0, 0, 0, 0.3);
+}
+
+.card-transition {
+	transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+}
+.card-transition:hover {
+	box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input:focus, button:focus-visible {
+	outline: none;
+}

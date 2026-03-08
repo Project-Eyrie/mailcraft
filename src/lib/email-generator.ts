@@ -95,13 +95,18 @@ function clean(s: string): string {
 	return s.toLowerCase().replace(/[^a-z]/g, '');
 }
 
+// Lowercases and strips characters not valid in email local parts, preserving numbers, dots, underscores, and hyphens
+function cleanUsername(s: string): string {
+	return s.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+}
+
 // Builds all email pattern definitions based on available personal information fields
 function buildPatterns(input: UserInput): PatternDef[] {
 	const first = clean(input.firstName);
 	const last = clean(input.lastName);
 	const middle = input.middleName ? clean(input.middleName) : null;
 	const mi = middle ? middle[0] : null;
-	const nick = input.nickname ? clean(input.nickname) : null;
+	const nick = input.nickname ? cleanUsername(input.nickname) : null;
 	const year = input.birthYear ? String(input.birthYear) : null;
 	const year2 = input.birthYear ? String(input.birthYear).slice(2) : null;
 	const month = input.birthMonth ? String(input.birthMonth).padStart(2, '0') : null;

@@ -60,6 +60,8 @@
 	let postcode = $state('');
 	let showMore = $state(false);
 
+	let nicknameInvalid = $derived(nickname.trim() !== '' && /[^a-z0-9._-]/i.test(nickname.trim()));
+
 	let providerFilter = $state('all');
 	let showReference = $state(false);
 	let selectedEmail = $state<string | null>(null);
@@ -154,7 +156,7 @@
 		};
 
 		if (middleName.trim()) input.middleName = middleName.trim();
-		if (nickname.trim()) input.nickname = nickname.trim();
+		if (nickname.trim() && !nicknameInvalid) input.nickname = nickname.trim();
 		if (birthYear.trim()) input.birthYear = parseInt(birthYear.trim());
 		if (birthMonth.trim()) input.birthMonth = parseInt(birthMonth.trim());
 		if (birthDay.trim()) input.birthDay = parseInt(birthDay.trim());
@@ -679,13 +681,13 @@
 							/>
 						</div>
 						<div class="col-span-1 sm:col-span-2">
-							<label for="nickname" class="mb-1 block text-[9px] font-medium text-zinc-500">nickname</label>
+							<label for="nickname" class="mb-1 block text-[9px] font-medium {nicknameInvalid ? 'text-red-400' : 'text-zinc-500'}">nickname{nicknameInvalid ? ' (invalid)' : ''}</label>
 							<input
 								id="nickname"
 								type="text"
 								bind:value={nickname}
-								placeholder="johnny"
-								class="w-full rounded-lg border border-zinc-700/50 bg-zinc-800/40 px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 outline-none transition-all focus:border-zinc-400/50 focus:bg-zinc-800/60"
+								placeholder="gamer123"
+								class="w-full rounded-lg border bg-zinc-800/40 px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 outline-none transition-all focus:bg-zinc-800/60 {nicknameInvalid ? 'border-red-500/60 focus:border-red-400/70' : 'border-zinc-700/50 focus:border-zinc-400/50'}"
 							/>
 						</div>
 						<div>

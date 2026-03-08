@@ -1,4 +1,4 @@
-// Multi-layer email verification API that checks syntax, MX records, disposable status, provider existence, and cross-provider signals
+// Multi-layer email verification API that checks syntax, MX records, disposable status, and breach databases
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { resolveMx } from 'dns/promises';
@@ -9,22 +9,13 @@ interface VerificationResult {
 		syntax: { valid: boolean; error?: string };
 		mx: { valid: boolean; records?: string[] };
 		disposable: { isDisposable: boolean };
-		provider?: {
-			method: string;
-			exists: boolean;
-			throttled?: boolean;
-			meta?: Record<string, unknown>;
-		};
-		signals: {
-			gravatar: boolean;
-			microsoft: { found: boolean; throttled?: boolean };
-			spotify: { found: boolean };
+		breaches: {
 			xposedOrNot: { found: boolean; breaches?: string[] };
 			leakCheck: { found: boolean; sources?: string[] };
 		};
 	};
-	verdict: 'valid' | 'invalid' | 'likely_valid' | 'unknown';
-	confidence: number;
+	verdict: 'invalid' | 'unknown';
+	breachCount: number;
 }
 
 // Validates email syntax against RFC 5321 and provider-specific rules
@@ -92,98 +83,6 @@ async function checkDisposable(email: string): Promise<{ isDisposable: boolean }
 	}
 }
 
-const MICROSOFT_DOMAINS = [
-	'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-	'hotmail.co.uk', 'hotmail.fr', 'outlook.co.uk'
-];
-
-// Checks Microsoft's GetCredentialType API to determine if an email exists as a Microsoft account
-async function checkMicrosoftProvider(email: string): Promise<{
-	exists: boolean;
-	throttled: boolean;
-	ifExistsResult: number;
-}> {
-	try {
-		const res = await fetch(
-			'https://login.live.com/GetCredentialType',
-			{
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ Username: email, isOtherIdpSupported: true }),
-				signal: AbortSignal.timeout(8000)
-			}
-		);
-		const data = await res.json();
-		const result = data.IfExistsResult;
-		return {
-			exists: [0, 5, 6].includes(result),
-			throttled: (data.ThrottleStatus ?? 0) !== 0,
-			ifExistsResult: result
-		};
-	} catch {
-		return { exists: false, throttled: false, ifExistsResult: -1 };
-	}
-}
-
-// Checks if any email has an associated Microsoft account as a cross-provider signal
-async function checkMicrosoftSignal(email: string): Promise<{ found: boolean; throttled?: boolean }> {
-	try {
-		const res = await fetch(
-			'https://login.live.com/GetCredentialType',
-			{
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ Username: email, isOtherIdpSupported: true }),
-				signal: AbortSignal.timeout(8000)
-			}
-		);
-		const data = await res.json();
-		if ((data.ThrottleStatus ?? 0) !== 0) {
-			return { found: false, throttled: true };
-		}
-		return { found: [0, 5, 6].includes(data.IfExistsResult) };
-	} catch {
-		return { found: false };
-	}
-}
-
-// Checks Spotify's signup API to detect if an email is registered with Spotify
-async function checkSpotify(email: string): Promise<{ found: boolean }> {
-	try {
-		const res = await fetch(
-			`https://spclient.wg.spotify.com/signup/public/v1/account?validate=1&email=${encodeURIComponent(email)}`,
-			{
-				method: 'GET',
-				headers: { Accept: 'application/json' },
-				signal: AbortSignal.timeout(8000)
-			}
-		);
-		if (!res.ok) return { found: false };
-		const data = await res.json();
-		if (data.status === 20) return { found: true };
-		return { found: false };
-	} catch {
-		return { found: false };
-	}
-}
-
-// Checks if a Gravatar profile exists for the email by looking up its MD5 hash
-async function checkGravatar(email: string): Promise<boolean> {
-	try {
-		const { createHash } = await import('crypto');
-		const hash = createHash('md5')
-			.update(email.trim().toLowerCase())
-			.digest('hex');
-		const res = await fetch(
-			`https://www.gravatar.com/avatar/${hash}?d=404`,
-			{ method: 'HEAD', signal: AbortSignal.timeout(5000) }
-		);
-		return res.status === 200;
-	} catch {
-		return false;
-	}
-}
-
 // Queries the XposedOrNot breach database to find if the email appears in known data breaches
 async function checkXposedOrNot(email: string): Promise<{
 	found: boolean;
@@ -235,29 +134,18 @@ async function checkLeakCheck(email: string): Promise<{
 	}
 }
 
-// Orchestrates all verification layers and computes a confidence-weighted verdict for an email
+// Orchestrates all verification layers and computes a verdict with breach count for an email
 async function verifyEmail(email: string): Promise<VerificationResult> {
 	const normalized = email.trim().toLowerCase();
-	const domain = normalized.split('@')[1];
+	const emptyBreaches = { xposedOrNot: { found: false }, leakCheck: { found: false } };
 
 	const syntax = checkSyntax(normalized);
 	if (!syntax.valid) {
 		return {
 			email: normalized,
-			layers: {
-				syntax,
-				mx: { valid: false },
-				disposable: { isDisposable: false },
-				signals: {
-					gravatar: false,
-					microsoft: { found: false },
-					spotify: { found: false },
-					xposedOrNot: { found: false },
-					leakCheck: { found: false }
-				}
-			},
+			layers: { syntax, mx: { valid: false }, disposable: { isDisposable: false }, breaches: emptyBreaches },
 			verdict: 'invalid',
-			confidence: 100
+			breachCount: 0
 		};
 	}
 
@@ -269,89 +157,27 @@ async function verifyEmail(email: string): Promise<VerificationResult> {
 	if (!mx.valid) {
 		return {
 			email: normalized,
-			layers: {
-				syntax,
-				mx,
-				disposable,
-				signals: {
-					gravatar: false,
-					microsoft: { found: false },
-					spotify: { found: false },
-					xposedOrNot: { found: false },
-					leakCheck: { found: false }
-				}
-			},
+			layers: { syntax, mx, disposable, breaches: emptyBreaches },
 			verdict: 'invalid',
-			confidence: 95
+			breachCount: 0
 		};
 	}
 
 	if (disposable.isDisposable) {
 		return {
 			email: normalized,
-			layers: {
-				syntax,
-				mx,
-				disposable,
-				signals: {
-					gravatar: false,
-					microsoft: { found: false },
-					spotify: { found: false },
-					xposedOrNot: { found: false },
-					leakCheck: { found: false }
-				}
-			},
+			layers: { syntax, mx, disposable, breaches: emptyBreaches },
 			verdict: 'invalid',
-			confidence: 95
+			breachCount: 0
 		};
 	}
 
-	let providerCheck: VerificationResult['layers']['provider'];
-
-	if (MICROSOFT_DOMAINS.includes(domain)) {
-		const ms = await checkMicrosoftProvider(normalized);
-		providerCheck = {
-			method: 'microsoft_getcredentialtype',
-			exists: ms.exists,
-			throttled: ms.throttled,
-			meta: { ifExistsResult: ms.ifExistsResult }
-		};
-	}
-
-	const isMsDomain = MICROSOFT_DOMAINS.includes(domain);
-	const [gravatar, microsoft, spotify, xon, lc] = await Promise.all([
-		checkGravatar(normalized),
-		isMsDomain ? Promise.resolve({ found: providerCheck?.exists ?? false }) : checkMicrosoftSignal(normalized),
-		checkSpotify(normalized),
+	const [xon, lc] = await Promise.all([
 		checkXposedOrNot(normalized),
 		checkLeakCheck(normalized)
 	]);
 
-	let confidence = 50;
-	let verdict: VerificationResult['verdict'] = 'unknown';
-
-	if (providerCheck && !providerCheck.throttled) {
-		if (providerCheck.exists) {
-			verdict = 'valid';
-			confidence = 99;
-		} else {
-			verdict = 'invalid';
-			confidence = 95;
-		}
-	} else {
-		if (gravatar) confidence += 25;
-		if (microsoft.found) confidence += 15;
-		if (spotify.found) confidence += 10;
-		if (xon.found) confidence += 20;
-		if (lc.found) confidence += 15;
-
-		if (xon.found || lc.found) {
-			verdict = 'likely_valid';
-			confidence = Math.max(confidence, 80);
-		} else if (confidence >= 75) {
-			verdict = 'likely_valid';
-		}
-	}
+	const breachCount = (xon.breaches?.length ?? 0) + (lc.sources?.length ?? 0);
 
 	return {
 		email: normalized,
@@ -359,17 +185,13 @@ async function verifyEmail(email: string): Promise<VerificationResult> {
 			syntax,
 			mx,
 			disposable,
-			provider: providerCheck,
-			signals: {
-				gravatar,
-				microsoft,
-				spotify,
+			breaches: {
 				xposedOrNot: xon,
 				leakCheck: lc
 			}
 		},
-		verdict,
-		confidence: Math.min(confidence, 100)
+		verdict: 'unknown',
+		breachCount
 	};
 }
 

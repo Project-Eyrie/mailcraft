@@ -69,21 +69,12 @@
 	interface VerifyResult {
 		email: string;
 		verdict: string;
-		confidence: number;
+		breachCount: number;
 		layers: {
 			syntax: { valid: boolean; error?: string };
 			mx: { valid: boolean };
 			disposable: { isDisposable: boolean };
-			provider?: {
-				method: string;
-				exists: boolean;
-				throttled?: boolean;
-				meta?: Record<string, unknown>;
-			};
-			signals: {
-				gravatar: boolean;
-				microsoft: { found: boolean; throttled?: boolean };
-				spotify: { found: boolean };
+			breaches: {
 				xposedOrNot: { found: boolean; breaches?: string[] };
 				leakCheck: { found: boolean; sources?: string[] };
 			};
@@ -223,14 +214,7 @@
 	function hasLeaks(email: string): boolean {
 		const v = verificationResults[email];
 		if (!v) return false;
-		return v.layers.signals.xposedOrNot.found || v.layers.signals.leakCheck.found;
-	}
-
-	// Checks if an email has been confirmed to exist by provider-level verification
-	function isConfirmed(email: string): boolean {
-		const v = verificationResults[email];
-		if (!v) return false;
-		return v.verdict === 'valid' || v.layers.provider?.exists === true;
+		return v.breachCount > 0;
 	}
 
 	// Toggles the selected email in the detail sidebar
@@ -260,70 +244,6 @@
 			return { char, type: 'literal' as SegmentType };
 		});
 	});
-
-	// Returns the Gravatar image URL for a given email address
-	function gravatarUrl(email: string): string {
-		return `https://www.gravatar.com/avatar/${md5(email.trim().toLowerCase())}?s=32&d=404`;
-	}
-
-	// Computes an MD5 hash of a string for Gravatar URL generation
-	function md5(str: string): string {
-		// Processes a 64-byte block through the four MD5 rounds
-		function md5cycle(x: number[], k: number[]) {
-			let a = x[0], b = x[1], c = x[2], d = x[3];
-			a = ff(a, b, c, d, k[0], 7, -680876936); d = ff(d, a, b, c, k[1], 12, -389564586); c = ff(c, d, a, b, k[2], 17, 606105819); b = ff(b, c, d, a, k[3], 22, -1044525330);
-			a = ff(a, b, c, d, k[4], 7, -176418897); d = ff(d, a, b, c, k[5], 12, 1200080426); c = ff(c, d, a, b, k[6], 17, -1473231341); b = ff(b, c, d, a, k[7], 22, -45705983);
-			a = ff(a, b, c, d, k[8], 7, 1770035416); d = ff(d, a, b, c, k[9], 12, -1958414417); c = ff(c, d, a, b, k[10], 17, -42063); b = ff(b, c, d, a, k[11], 22, -1990404162);
-			a = ff(a, b, c, d, k[12], 7, 1804603682); d = ff(d, a, b, c, k[13], 12, -40341101); c = ff(c, d, a, b, k[14], 17, -1502002290); b = ff(b, c, d, a, k[15], 22, 1236535329);
-			a = gg(a, b, c, d, k[1], 5, -165796510); d = gg(d, a, b, c, k[6], 9, -1069501632); c = gg(c, d, a, b, k[11], 14, 643717713); b = gg(b, c, d, a, k[0], 20, -373897302);
-			a = gg(a, b, c, d, k[5], 5, -701558691); d = gg(d, a, b, c, k[10], 9, 38016083); c = gg(c, d, a, b, k[15], 14, -660478335); b = gg(b, c, d, a, k[4], 20, -405537848);
-			a = gg(a, b, c, d, k[9], 5, 568446438); d = gg(d, a, b, c, k[14], 9, -1019803690); c = gg(c, d, a, b, k[3], 14, -187363961); b = gg(b, c, d, a, k[8], 20, 1163531501);
-			a = gg(a, b, c, d, k[13], 5, -1444681467); d = gg(d, a, b, c, k[2], 9, -51403784); c = gg(c, d, a, b, k[7], 14, 1735328473); b = gg(b, c, d, a, k[12], 20, -1926607734);
-			a = hh(a, b, c, d, k[5], 4, -378558); d = hh(d, a, b, c, k[8], 11, -2022574463); c = hh(c, d, a, b, k[11], 16, 1839030562); b = hh(b, c, d, a, k[14], 23, -35309556);
-			a = hh(a, b, c, d, k[1], 4, -1530992060); d = hh(d, a, b, c, k[4], 11, 1272893353); c = hh(c, d, a, b, k[7], 16, -155497632); b = hh(b, c, d, a, k[10], 23, -1094730640);
-			a = hh(a, b, c, d, k[13], 4, 681279174); d = hh(d, a, b, c, k[0], 11, -358537222); c = hh(c, d, a, b, k[3], 16, -722521979); b = hh(b, c, d, a, k[6], 23, 76029189);
-			a = hh(a, b, c, d, k[9], 4, -640364487); d = hh(d, a, b, c, k[12], 11, -421815835); c = hh(c, d, a, b, k[15], 16, 530742520); b = hh(b, c, d, a, k[2], 23, -995338651);
-			a = ii(a, b, c, d, k[0], 6, -198630844); d = ii(d, a, b, c, k[7], 10, 1126891415); c = ii(c, d, a, b, k[14], 15, -1416354905); b = ii(b, c, d, a, k[5], 21, -57434055);
-			a = ii(a, b, c, d, k[12], 6, 1700485571); d = ii(d, a, b, c, k[3], 10, -1894986606); c = ii(c, d, a, b, k[10], 15, -1051523); b = ii(b, c, d, a, k[1], 21, -2054922799);
-			a = ii(a, b, c, d, k[8], 6, 1873313359); d = ii(d, a, b, c, k[15], 10, -30611744); c = ii(c, d, a, b, k[6], 15, -1560198380); b = ii(b, c, d, a, k[13], 21, 1309151649);
-			a = ii(a, b, c, d, k[4], 6, -145523070); d = ii(d, a, b, c, k[11], 10, -1120210379); c = ii(c, d, a, b, k[2], 15, 718787259); b = ii(b, c, d, a, k[9], 21, -343485551);
-			x[0] = add32(a, x[0]); x[1] = add32(b, x[1]); x[2] = add32(c, x[2]); x[3] = add32(d, x[3]);
-		}
-		// Performs the common MD5 rotate-and-add operation
-		function cmn(q: number, a: number, b: number, x: number, s: number, t: number) { a = add32(add32(a, q), add32(x, t)); return add32((a << s) | (a >>> (32 - s)), b); }
-		// MD5 round 1 auxiliary function
-		function ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return cmn((b & c) | (~b & d), a, b, x, s, t); }
-		// MD5 round 2 auxiliary function
-		function gg(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return cmn((b & d) | (c & ~d), a, b, x, s, t); }
-		// MD5 round 3 auxiliary function
-		function hh(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return cmn(b ^ c ^ d, a, b, x, s, t); }
-		// MD5 round 4 auxiliary function
-		function ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return cmn(c ^ (b | ~d), a, b, x, s, t); }
-		// Adds two 32-bit integers with overflow wrapping
-		function add32(a: number, b: number) { return (a + b) & 0xffffffff; }
-
-		const n = str.length;
-		let state = [1732584193, -271733879, -1732584194, 271733878];
-		let i: number;
-		for (i = 64; i <= n; i += 64) {
-			const k: number[] = [];
-			for (let j = i - 64; j < i; j += 4) k.push(str.charCodeAt(j) | (str.charCodeAt(j+1) << 8) | (str.charCodeAt(j+2) << 16) | (str.charCodeAt(j+3) << 24));
-			md5cycle(state, k);
-		}
-		const tail: number[] = [];
-		for (let j = i - 64; j < n; j++) tail.push(str.charCodeAt(j));
-		tail.push(0x80);
-		while (tail.length < (tail.length <= 56 ? 56 : 120)) tail.push(0);
-		const k: number[] = [];
-		for (let j = 0; j < tail.length; j += 4) k.push((tail[j] || 0) | ((tail[j+1] || 0) << 8) | ((tail[j+2] || 0) << 16) | ((tail[j+3] || 0) << 24));
-		k.push(n * 8); k.push(0);
-		while (k.length % 16 !== 0) k.push(0);
-		for (let j = 0; j < k.length; j += 16) md5cycle(state, k.slice(j, j + 16));
-		const hex = '0123456789abcdef';
-		let s = '';
-		for (const v of state) for (let j = 0; j < 4; j++) s += hex[(v >> (j * 8 + 4)) & 0xf] + hex[(v >> (j * 8)) & 0xf];
-		return s;
-	}
 
 	// Toggles a pattern category on or off for email generation filtering
 	function toggleCategory(cat: string) {
@@ -504,30 +424,14 @@
 
 	// Converts a verdict string to a display label
 	function verdictLabel(verdict: string): string {
-		switch (verdict) {
-			case 'valid':
-				return 'EXISTS';
-			case 'invalid':
-				return 'INVALID';
-			case 'likely_valid':
-				return 'LIKELY';
-			default:
-				return 'UNKNOWN';
-		}
+		return verdict === 'invalid' ? 'INVALID' : 'CHECKED';
 	}
 
 	// Returns Tailwind CSS classes for styling a verdict badge
 	function verdictStyle(verdict: string): string {
-		switch (verdict) {
-			case 'valid':
-				return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300/80';
-			case 'invalid':
-				return 'border-zinc-700/50 bg-zinc-800/50 text-zinc-500';
-			case 'likely_valid':
-				return 'border-zinc-500/40 bg-zinc-700/30 text-zinc-300';
-			default:
-				return 'border-zinc-700 bg-zinc-800/50 text-zinc-500';
-		}
+		return verdict === 'invalid'
+			? 'border-zinc-700/50 bg-zinc-800/50 text-zinc-500'
+			: 'border-zinc-600/40 bg-zinc-700/30 text-zinc-300';
 	}
 
 </script>
@@ -585,11 +489,18 @@
 				{#if queryIsComplete}
 					{@const v = verificationResults[query.trim().toLowerCase()]}
 					{#if v}
-						<span
-							class="shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-bold {verdictStyle(v.verdict)}"
-						>
-							{verdictLabel(v.verdict)}
-						</span>
+						<div class="flex shrink-0 items-center gap-1">
+							<span
+								class="rounded-lg border px-2.5 py-1 text-[10px] font-bold {verdictStyle(v.verdict)}"
+							>
+								{verdictLabel(v.verdict)}
+							</span>
+							{#if v.breachCount > 0}
+								<span class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-300/80">
+									{v.breachCount} {v.breachCount === 1 ? 'BREACH' : 'BREACHES'}
+								</span>
+							{/if}
+						</div>
 					{:else if verifyingSingle === query.trim().toLowerCase()}
 						<span class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-400 border-t-transparent"></span>
 					{:else}
@@ -943,7 +854,6 @@
 									{#each displaySuggestions as result}
 										{@const v = verificationResults[result.email]}
 										{@const leaked = hasLeaks(result.email)}
-										{@const confirmed = isConfirmed(result.email)}
 										{@const atIdx = result.email.indexOf('@')}
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
@@ -951,18 +861,11 @@
 											onkeydown={(e) => { if (e.key === 'Enter') selectEmail(result.email); }}
 											class="group flex cursor-pointer items-center gap-3 border-b border-zinc-800/20 px-4 py-[7px] transition-all
 												{selectedEmail === result.email ? 'bg-zinc-800/40 border-l-2 border-l-blue-400/60 pl-3.5' : 'hover:bg-zinc-800/30'}
-												{leaked ? 'border-l-2 border-l-amber-500/40 pl-3.5' : confirmed && selectedEmail !== result.email ? 'border-l-2 border-l-emerald-500/30 pl-3.5' : ''}"
+												{leaked ? 'border-l-2 border-l-amber-500/40 pl-3.5' : ''}"
 											role="option"
 											tabindex="0"
 											aria-selected={selectedEmail === result.email}
 										>
-											{#if v?.layers.signals.gravatar}
-											<img
-												src={gravatarUrl(result.email)}
-												alt=""
-												class="h-5 w-5 shrink-0 rounded-full ring-1 ring-zinc-500/40"
-											/>
-										{/if}
 
 										<span class="min-w-0 flex-1 truncate font-mono text-[13px]">
 											<span class="{leaked ? 'text-zinc-200' : 'text-zinc-400'} group-hover:text-zinc-200">{result.email.substring(0, atIdx)}</span><span class="text-zinc-600">@</span><span class="text-zinc-500 group-hover:text-zinc-300">{result.email.substring(atIdx + 1)}</span>
@@ -975,27 +878,11 @@
 												>
 													{verdictLabel(v.verdict)}
 												</span>
-											{/if}
-											{#if v?.layers.signals.xposedOrNot.found}
-												<span class="rounded-md bg-zinc-700/50 px-1.5 py-px text-[8px] font-bold text-amber-400">BREACH</span>
-											{/if}
-											{#if v?.layers.signals.leakCheck.found}
-												<span class="rounded-md bg-zinc-700/50 px-1.5 py-px text-[8px] font-bold text-amber-400">LEAK</span>
-											{/if}
-											{#if v?.layers.signals.microsoft.found}
-												<span class="rounded-md bg-zinc-700/50 px-1.5 py-px text-[8px] font-medium text-zinc-400">MS</span>
-											{/if}
-											{#if v?.layers.signals.microsoft.throttled}
-												<span class="rounded-md bg-amber-500/15 px-1.5 py-px text-[8px] font-medium text-amber-400">throttled</span>
-											{/if}
-											{#if v?.layers.signals.spotify.found}
-												<span class="rounded-md bg-zinc-700/50 px-1.5 py-px text-[8px] font-medium text-zinc-400">Spotify</span>
-											{/if}
-											{#if v?.layers.provider?.throttled}
-												<span class="rounded-md bg-amber-500/15 px-1.5 py-px text-[8px] font-medium text-amber-400">throttled</span>
-											{/if}
-											{#if v?.layers.provider?.exists && v.verdict !== 'valid'}
-												<span class="rounded-md bg-zinc-700/50 px-1.5 py-px text-[8px] font-medium text-zinc-300">confirmed</span>
+												{#if v.breachCount > 0}
+													<span class="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-px text-[8px] font-bold text-amber-300/80">
+														{v.breachCount} {v.breachCount === 1 ? 'BREACH' : 'BREACHES'}
+													</span>
+												{/if}
 											{/if}
 										</div>
 
@@ -1042,49 +929,11 @@
 											<span class="rounded-xl border px-4 py-2 text-sm font-bold {verdictStyle(sv.verdict)}">
 												{verdictLabel(sv.verdict)}
 											</span>
-											<div class="group relative text-xs cursor-default">
-												<div class="font-medium text-zinc-300">{sv.confidence}%</div>
-												<div class="text-[9px] text-zinc-600">confidence</div>
-												<div class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 rounded-lg border border-zinc-700/60 bg-zinc-900 px-3 py-2.5 opacity-0 shadow-xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-													<div class="mb-1.5 whitespace-nowrap text-[10px] font-bold tracking-widest text-zinc-400 uppercase">breakdown</div>
-													{#if sv.layers.provider && !sv.layers.provider.throttled}
-														<div class="flex items-center justify-between gap-4 whitespace-nowrap text-[11px]">
-															<span class="text-zinc-400">Provider {sv.layers.provider.exists ? 'confirmed' : 'denied'}</span>
-															<span class="font-mono text-zinc-300">{sv.layers.provider.exists ? '99' : '95'}%</span>
-														</div>
-													{:else}
-														<div class="flex items-center justify-between gap-4 whitespace-nowrap text-[11px]">
-															<span class="text-zinc-500">Base</span>
-															<span class="font-mono text-zinc-400">50</span>
-														</div>
-														<div class="flex items-center justify-between gap-4 whitespace-nowrap text-[11px]">
-															<span class="{sv.layers.signals.gravatar ? 'text-zinc-300' : 'text-zinc-600'}">Gravatar</span>
-															<span class="font-mono {sv.layers.signals.gravatar ? 'text-emerald-400' : 'text-zinc-700'}">{sv.layers.signals.gravatar ? '+25' : '—'}</span>
-														</div>
-														<div class="flex items-center justify-between gap-4 whitespace-nowrap text-[11px]">
-															<span class="{sv.layers.signals.microsoft.found ? 'text-zinc-300' : 'text-zinc-600'}">Microsoft</span>
-															<span class="font-mono {sv.layers.signals.microsoft.found ? 'text-emerald-400' : 'text-zinc-700'}">{sv.layers.signals.microsoft.found ? '+15' : '—'}</span>
-														</div>
-														<div class="flex items-center justify-between gap-4 whitespace-nowrap text-[11px]">
-															<span class="{sv.layers.signals.spotify.found ? 'text-zinc-300' : 'text-zinc-600'}">Spotify</span>
-															<span class="font-mono {sv.layers.signals.spotify.found ? 'text-emerald-400' : 'text-zinc-700'}">{sv.layers.signals.spotify.found ? '+10' : '—'}</span>
-														</div>
-														<div class="flex items-center justify-between gap-4 whitespace-nowrap text-[11px]">
-															<span class="{sv.layers.signals.xposedOrNot.found ? 'text-zinc-300' : 'text-zinc-600'}">Breach data</span>
-															<span class="font-mono {sv.layers.signals.xposedOrNot.found ? 'text-emerald-400' : 'text-zinc-700'}">{sv.layers.signals.xposedOrNot.found ? '+20' : '—'}</span>
-														</div>
-														<div class="flex items-center justify-between gap-4 whitespace-nowrap text-[11px]">
-															<span class="{sv.layers.signals.leakCheck.found ? 'text-zinc-300' : 'text-zinc-600'}">Leak data</span>
-															<span class="font-mono {sv.layers.signals.leakCheck.found ? 'text-emerald-400' : 'text-zinc-700'}">{sv.layers.signals.leakCheck.found ? '+15' : '—'}</span>
-														</div>
-														<div class="mt-1.5 flex items-center justify-between gap-4 border-t border-zinc-700/40 pt-1.5 whitespace-nowrap text-[11px]">
-															<span class="font-medium text-zinc-300">Total</span>
-															<span class="font-mono font-medium text-zinc-200">{sv.confidence}%</span>
-														</div>
-													{/if}
-													<div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-zinc-700/60"></div>
-												</div>
-											</div>
+											{#if sv.breachCount > 0}
+												<span class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-300/80">
+													{sv.breachCount} {sv.breachCount === 1 ? 'BREACH' : 'BREACHES'}
+												</span>
+											{/if}
 										</div>
 
 										<div class="mb-4 space-y-1">
@@ -1104,66 +953,43 @@
 												<span class="text-zinc-300">Disposable</span>
 												<span class="text-zinc-500 ml-auto text-[11px] font-medium">{sv.layers.disposable.isDisposable ? 'yes' : 'no'}</span>
 											</div>
-											{#if sv.layers.provider}
-												<div class="flex items-center gap-2.5 rounded-lg bg-zinc-800/30 px-3 py-1.5 text-xs">
-													<span class="inline-block h-2 w-2 shrink-0 rounded-full {sv.layers.provider.exists ? 'bg-emerald-500/50' : sv.layers.provider.throttled ? 'bg-amber-400/60' : 'bg-zinc-600'}"></span>
-													<span class="text-zinc-300">Provider</span>
-													<span class="{sv.layers.provider.exists ? 'text-zinc-300' : sv.layers.provider.throttled ? 'text-amber-400/70' : 'text-zinc-500'} ml-auto text-[11px] font-medium">
-														{sv.layers.provider.exists ? 'exists' : sv.layers.provider.throttled ? 'throttled' : 'not found'}
-													</span>
-												</div>
-											{/if}
 											<div class="flex items-center gap-2.5 rounded-lg bg-zinc-800/30 px-3 py-1.5 text-xs">
-												{#if sv.layers.signals.gravatar}
-													<img src={gravatarUrl(selectedEmail ?? '')} alt="" class="h-5 w-5 shrink-0 rounded-full ring-1 ring-zinc-500/40" />
-												{:else}
-													<span class="inline-block h-2 w-2 shrink-0 rounded-full bg-zinc-700"></span>
-												{/if}
-												<span class="text-zinc-300">Gravatar</span>
-												<span class="{sv.layers.signals.gravatar ? 'text-zinc-300' : 'text-zinc-600'} ml-auto text-[11px] font-medium">{sv.layers.signals.gravatar ? 'found' : 'none'}</span>
-											</div>
-											<div class="flex items-center gap-2.5 rounded-lg bg-zinc-800/30 px-3 py-1.5 text-xs">
-												<span class="inline-block h-2 w-2 shrink-0 rounded-full {sv.layers.signals.microsoft.found ? 'bg-emerald-500/50' : sv.layers.signals.microsoft.throttled ? 'bg-amber-400/60' : 'bg-zinc-700'}"></span>
-												<span class="text-zinc-300">Microsoft</span>
-												<span class="{sv.layers.signals.microsoft.found ? 'text-zinc-300' : sv.layers.signals.microsoft.throttled ? 'text-amber-400/70' : 'text-zinc-600'} ml-auto text-[11px] font-medium">{sv.layers.signals.microsoft.found ? 'found' : sv.layers.signals.microsoft.throttled ? 'throttled' : 'none'}</span>
-											</div>
-											<div class="flex items-center gap-2.5 rounded-lg bg-zinc-800/30 px-3 py-1.5 text-xs">
-												<span class="inline-block h-2 w-2 shrink-0 rounded-full {sv.layers.signals.spotify.found ? 'bg-emerald-500/50' : 'bg-zinc-700'}"></span>
-												<span class="text-zinc-300">Spotify</span>
-												<span class="{sv.layers.signals.spotify.found ? 'text-zinc-300' : 'text-zinc-600'} ml-auto text-[11px] font-medium">{sv.layers.signals.spotify.found ? 'found' : 'none'}</span>
+												<span class="inline-block h-2 w-2 shrink-0 rounded-full {sv.layers.breaches.xposedOrNot.found || sv.layers.breaches.leakCheck.found ? 'bg-amber-400' : 'bg-zinc-700'}"></span>
+												<span class="text-zinc-300">Breaches</span>
+												<span class="{sv.breachCount > 0 ? 'text-amber-300/80' : 'text-zinc-600'} ml-auto text-[11px] font-medium">{sv.breachCount > 0 ? sv.breachCount + ' found' : 'none'}</span>
 											</div>
 										</div>
 
-										{#if sv.layers.signals.xposedOrNot.found || sv.layers.signals.leakCheck.found}
-											<div class="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-3">
-												<h3 class="mb-2 text-xs font-bold text-zinc-300">Data Exposure</h3>
-												{#if sv.layers.signals.xposedOrNot.found}
+										{#if sv.layers.breaches.xposedOrNot.found || sv.layers.breaches.leakCheck.found}
+											<div class="rounded-xl border border-amber-500/20 bg-zinc-800/30 p-3">
+												<h3 class="mb-2 text-xs font-bold text-amber-300/80">Data Exposure</h3>
+												{#if sv.layers.breaches.xposedOrNot.found}
 													<div class="mb-2">
 														<div class="flex items-center gap-1.5">
 															<span class="inline-block h-2 w-2 rounded-full bg-amber-400"></span>
 															<span class="text-xs font-bold text-zinc-300">Breach Detected</span>
 														</div>
-														{#if sv.layers.signals.xposedOrNot.breaches?.length}
+														{#if sv.layers.breaches.xposedOrNot.breaches?.length}
 															<div class="mt-1.5 flex flex-wrap gap-1 pl-3.5">
-																{#each sv.layers.signals.xposedOrNot.breaches.slice(0, 8) as breach}
+																{#each sv.layers.breaches.xposedOrNot.breaches.slice(0, 8) as breach}
 																	<span class="rounded-md bg-zinc-700/50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">{breach}</span>
 																{/each}
-																{#if sv.layers.signals.xposedOrNot.breaches.length > 8}
-																	<span class="rounded-md bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">+{sv.layers.signals.xposedOrNot.breaches.length - 8} more</span>
+																{#if sv.layers.breaches.xposedOrNot.breaches.length > 8}
+																	<span class="rounded-md bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">+{sv.layers.breaches.xposedOrNot.breaches.length - 8} more</span>
 																{/if}
 															</div>
 														{/if}
 													</div>
 												{/if}
-												{#if sv.layers.signals.leakCheck.found}
+												{#if sv.layers.breaches.leakCheck.found}
 													<div>
 														<div class="flex items-center gap-1.5">
 															<span class="inline-block h-2 w-2 rounded-full bg-amber-400"></span>
 															<span class="text-xs font-bold text-zinc-300">Leak Detected</span>
 														</div>
-														{#if sv.layers.signals.leakCheck.sources?.length}
+														{#if sv.layers.breaches.leakCheck.sources?.length}
 															<div class="mt-1.5 flex flex-wrap gap-1 pl-3.5">
-																{#each sv.layers.signals.leakCheck.sources as source}
+																{#each sv.layers.breaches.leakCheck.sources as source}
 																	<span class="rounded-md bg-zinc-700/50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">{source}</span>
 																{/each}
 															</div>
@@ -1173,11 +999,6 @@
 											</div>
 										{/if}
 
-										{#if sv.layers.provider?.meta?.accountCreated}
-											<div class="mt-3 text-[11px] text-zinc-500">
-												<span class="text-zinc-600">Account created:</span> {sv.layers.provider.meta.accountCreated}
-											</div>
-										{/if}
 									{:else if verifyingSingle === selectedEmail}
 										<div class="space-y-3">
 											<div class="mb-3 flex items-center gap-2">
@@ -1185,7 +1006,7 @@
 												<span class="text-xs text-zinc-300">Running checks...</span>
 											</div>
 											<div class="space-y-2">
-												{#each ['Syntax validation', 'MX record lookup', 'Disposable check', 'Provider check', 'Gravatar lookup', 'Microsoft account', 'Spotify account', 'Breach databases'] as step, i}
+												{#each ['Syntax validation', 'MX record lookup', 'Disposable check', 'Breach databases'] as step, i}
 													<div class="flex items-center gap-2 text-[11px]">
 														<span class="inline-block h-1.5 w-1.5 rounded-full animate-pulse bg-zinc-400/50" style="animation-delay: {i * 150}ms"></span>
 														<span class="text-zinc-500">{step}</span>

@@ -2,7 +2,7 @@
 
 # MailCraft
 
-> Generate, discover, and verify possible email addresses from personal information using common naming patterns.
+> Generate possible email addresses from personal information using common naming patterns and check them against breach databases.
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![In Project Eyrie](https://img.shields.io/badge/IN-PROJECT%20EYRIE-b45309?style=for-the-badge&labelColor=0f172a)](https://github.com/Project-Eyrie)
@@ -14,7 +14,7 @@
 
 ## Overview
 
-**MailCraft** is an OSINT web tool built for investigators and researchers. It generates possible email addresses by combining personal information against common naming patterns across 24 email providers, then verifies them through multiple validation layers including provider APIs and breach databases.
+**MailCraft** is an OSINT web tool built for investigators and researchers. It generates possible email addresses by combining personal information against common naming patterns across 24 email providers, then checks them against breach databases to identify exposed accounts.
 
 ---
 
@@ -22,7 +22,7 @@
 
 - **Pattern Generation** - Combines names, birth dates, nicknames, and postcodes into 100+ email patterns across 24 providers with relevance scoring
 - **Wildcard Search** - Filter results using `*` (any characters) and `_` (single character) pattern matching
-- **Multi-Layer Verification** - Checks syntax, MX records, disposable status, provider existence (Microsoft API), and cross-provider signals (Gravatar, Spotify, breach databases)
+- **Breach Checking** - Queries XposedOrNot and LeakCheck databases to identify emails found in known data breaches
 - **Export and Share** - Copy results to clipboard, download as CSV, or share via URL with encoded application state
 
 ---
@@ -40,8 +40,8 @@ Enter a first name, last name, and optional details (middle name, nickname, birt
 | **Search & Filter** | Wildcard query input with quick-access domain buttons and custom domain support |
 | **Person Details** | Input fields for name, birth year, and optional middle name, nickname, postcode, and birthday |
 | **Patterns** | Toggle pattern categories on/off to control which email formats are generated |
-| **Results List** | Scrollable list of generated emails with inline verification badges and scores |
-| **Detail Sidebar** | Expanded view of a selected email showing scoring breakdown, verification layers, and data exposure |
+| **Results List** | Scrollable list of generated emails with inline verification badges and breach counts |
+| **Detail Sidebar** | Expanded view of a selected email showing scoring breakdown, verification checks, and data exposure |
 | **Provider Reference** | Collapsible table of provider-specific email rules and domains |
 
 ---
@@ -57,26 +57,26 @@ Each generated email receives a relevance score based on:
 - **Provider Market Share** (20%) - Relative popularity of the email provider
 - **PII Bonus** - Extra weight for patterns using additional personal information like birth year or nickname
 
-### Verification Layers
+### Verification Checks
 
-Each address goes through five layers of checks:
+Each address goes through four layers of checks:
 
-1. **Syntax** - Validates the address format against RFC 5321 and provider-specific rules
+1. **Syntax** - Validates the address format against RFC 5321 and provider-specific rules (Gmail, Outlook, Yahoo, iCloud each have unique constraints like character limits and allowed characters)
 2. **MX Records** - DNS lookup to confirm the domain accepts email
-3. **Disposable Check** - Flags temporary/throwaway providers
-4. **Provider Check** - Queries provider APIs directly where possible (e.g. Microsoft GetCredentialType) to determine if the account exists
-5. **Cross-Provider Signals** - Checks for associated accounts on Gravatar, Microsoft, and Spotify, and searches breach databases via XposedOrNot and LeakCheck
+3. **Disposable Check** - Flags temporary/throwaway email providers using the mailchecker database
+4. **Breach Databases** - Searches XposedOrNot and LeakCheck for appearances in known data breaches and leaks
 
-After verification, each address gets a verdict: **valid**, **invalid**, **likely valid**, or **unknown**, along with a confidence percentage.
+After verification, each address is marked as **INVALID** (failed syntax, MX, or disposable check) or **CHECKED** (passed basic checks). Emails found in breaches display a count of known exposures.
 
 ---
 
 ## Notes
 
-- **Runtime** - Requires Node.js for the verification API server (MX lookups and provider checks run server-side)
-- **Rate Limiting** - Verification requests are spaced 500ms apart to avoid provider throttling
-- **Batch Limit** - Up to 10 emails can be verified at once via the API, or all results can be verified sequentially with abort support
-- **State Persistence** - All application state is encoded in URL query parameters for sharing; data is not stored server-side
+- **Runtime** - Requires Node.js for the verification API server (MX lookups and breach checks run server-side)
+- **Rate Limiting** - Verification requests are spaced 500ms apart to avoid API throttling
+- **Batch Limit** - The top 10 results can be tested at once, or all results can be tested sequentially with abort support
+- **State Persistence** - All application state is encoded in URL query parameters for sharing; no data is stored server-side
+- **Gmail Dots** - Gmail ignores dots in addresses (j.doe and jdoe are the same account); the generator accounts for this by treating dots as non-distinct for Gmail
 
 ---
 

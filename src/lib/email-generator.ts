@@ -25,7 +25,7 @@ export const CATEGORIES: CategoryInfo[] = [
 	{ name: 'With Year', example: 'first.last03', requires: 'birthYear' },
 	{ name: 'With Birthday', example: 'first0315', requires: 'birthMonth' },
 	{ name: 'Location', example: 'first10001', requires: 'postcode' },
-	{ name: 'Nickname', example: 'nick.last', requires: 'nickname' },
+	{ name: 'Nickname/Username', example: 'nick', requires: 'nickname' },
 	{ name: 'Separators', example: 'first_last' },
 	{ name: 'Simple', example: 'first' },
 	{ name: 'Multi-word', example: 'first.de.last', requires: 'multiWord' },
@@ -377,100 +377,32 @@ function buildPatterns(input: UserInput): PatternDef[] {
 
 	if (nick) {
 		patterns.push({
-			id: 'nick.last',
-			label: 'nickname.lastname',
-			category: 'Nickname',
-			generate: () => `${nick}.${last}`,
-			commonality: 0.85,
-			identifiability: 0.75
-		});
-
-		patterns.push({
-			id: 'nicklast',
-			label: 'nicknamelastname',
-			category: 'Nickname',
-			generate: () => `${nick}${last}`,
-			commonality: 0.8,
-			identifiability: 0.75
-		});
-
-		patterns.push({
 			id: 'nick',
-			label: 'nickname only',
-			category: 'Nickname',
+			label: 'nickname/username',
+			category: 'Nickname/Username',
 			generate: () => nick,
-			commonality: 0.6,
-			identifiability: 0.4
+			commonality: 0.9,
+			identifiability: 0.8
 		});
-
-		if (mi) {
-			patterns.push({
-				id: 'nick.mi.last',
-				label: 'nickname.middleinitial.lastname',
-				category: 'Nickname',
-				generate: () => `${nick}.${mi}.${last}`,
-				commonality: 0.7,
-				identifiability: 0.9
-			});
-
-			patterns.push({
-				id: 'nickmilast',
-				label: 'nicknamemiddleinitiallastname',
-				category: 'Nickname',
-				generate: () => `${nick}${mi}${last}`,
-				commonality: 0.65,
-				identifiability: 0.9
-			});
-
-			patterns.push({
-				id: 'nick.mi.last_underscore',
-				label: 'nickname_middleinitial_lastname',
-				category: 'Nickname',
-				generate: () => `${nick}_${mi}_${last}`,
-				commonality: 0.45,
-				identifiability: 0.85,
-				requiresSeparator: true
-			});
-		}
 
 		if (year2) {
 			patterns.push({
-				id: 'nick.lastyy',
-				label: 'nickname.lastname + 2-digit year',
-				category: 'Nickname',
-				generate: () => `${nick}.${last}${year2}`,
-				commonality: 0.7,
-				identifiability: 0.7
-			});
-
-			patterns.push({
-				id: 'nicklastyy',
-				label: 'nicknamelastname + 2-digit year',
-				category: 'Nickname',
-				generate: () => `${nick}${last}${year2}`,
-				commonality: 0.65,
-				identifiability: 0.7
-			});
-
-			patterns.push({
 				id: 'nickyy',
-				label: 'nickname + 2-digit year',
-				category: 'Nickname',
+				label: 'nickname/username + 2-digit year',
+				category: 'Nickname/Username',
 				generate: () => `${nick}${year2}`,
-				commonality: 0.55,
-				identifiability: 0.5
+				commonality: 0.8,
+				identifiability: 0.85
 			});
 
-			if (mi) {
-				patterns.push({
-					id: 'nick.mi.last.yy',
-					label: 'nickname.middleinitial.lastname + 2-digit year',
-					category: 'Nickname',
-					generate: () => `${nick}.${mi}.${last}${year2}`,
-					commonality: 0.6,
-					identifiability: 0.95
-				});
-			}
+			patterns.push({
+				id: 'nickyyyy',
+				label: 'nickname/username + 4-digit year',
+				category: 'Nickname/Username',
+				generate: () => `${nick}${year}`,
+				commonality: 0.65,
+				identifiability: 0.85
+			});
 		}
 	}
 
@@ -870,7 +802,7 @@ export function generateEmails(input: UserInput): GeneratedEmail[] {
 			if (input.middleName && pattern.category === 'Middle Name') piiBonus += 0.15;
 			if (input.birthYear && pattern.category === 'With Year') piiBonus += 0.1;
 			if ((input.birthMonth && input.birthDay) && pattern.category === 'With Birthday') piiBonus += 0.1;
-			if (input.nickname && pattern.category === 'Nickname') piiBonus += 0.1;
+			if (input.nickname && pattern.category === 'Nickname/Username') piiBonus += 0.1;
 
 			const score =
 				pattern.commonality * 0.35 +

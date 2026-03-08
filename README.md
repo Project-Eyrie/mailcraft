@@ -72,11 +72,9 @@ After verification, each address is marked as **INVALID** (failed syntax, MX, or
 
 ## Notes
 
-- **Runtime** - Requires Node.js for the verification API server (MX lookups and breach checks run server-side)
 - **Rate Limiting** - Verification requests are spaced 500ms apart to avoid API throttling
 - **Batch Limit** - The top 10 results can be tested at once, or all results can be tested sequentially with abort support
 - **State Persistence** - All application state is encoded in URL query parameters for sharing; no data is stored server-side
-- **Gmail Dots** - Gmail ignores dots in addresses (j.doe and jdoe are the same account); the generator accounts for this by treating dots as non-distinct for Gmail
 
 ---
 
